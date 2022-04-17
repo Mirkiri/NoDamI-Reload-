@@ -1,156 +1,124 @@
 package net.mirkiri.nodami.config;
 
-import net.minecraftforge.common.ForgeConfigSpec;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.event.config.ModConfigEvent;
-import net.mirkiri.nodami.NoDamIMod;
+import net.fabricmc.loader.api.FabricLoader;
+import net.minecraft.block.SweetBerryBushBlock;
+import org.yaml.snakeyaml.Yaml;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.List;
-import java.util.function.Predicate;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
+import java.io.IOException;
 
 public class NodamiConfig {
-    private static final ForgeConfigSpec.Builder BUILDER;
-    public static final Core CORE;
-    public static final Thresholds THRESHOLDS;
-    public static final Exclusions EXCLUSIONS;
-    public static final Misc MISC;
+    public static int iFrameInterval;
+    public static boolean excludePlayers, excludeAllMobs, debugMode;
+    public static float attackCancelThreshold, knockbackCancelThreshold;
 
-    public static final ForgeConfigSpec SPEC;
+    public static String[] attackExcludedEntities, dmgReceiveExcludedEntities, damageSrcWhitelist;
 
-    static {
-        BUILDER = new ForgeConfigSpec.Builder();
-        CORE = new Core(BUILDER);
-        THRESHOLDS = new Thresholds(BUILDER);
-        EXCLUSIONS = new Exclusions(BUILDER);
-        MISC = new Misc(BUILDER);
-        SPEC = BUILDER.build();
-    }
-
-    public static class Core {
-        public final ForgeConfigSpec.IntValue iFrameIntervalTemp;
-        public final ForgeConfigSpec.BooleanValue excludePlayersTemp, excludeAllMobsTemp;
-
+    private static class ConfigCarrier {
         public int iFrameInterval;
-        public boolean excludePlayers, excludeAllMobs;
+        public boolean excludePlayers, excludeAllMobs, debugMode;
+        public float attackCancelThreshold, knockbackCancelThreshold;
+        public String[] attackExcludedEntities, dmgReceiveExcludedEntities, damageSrcWhitelist;
 
-        Core(ForgeConfigSpec.Builder builder) {
-            builder.comment("Core functionality settings").push("core");
-
-            iFrameIntervalTemp = builder.comment(
-                            "How many ticks of i-frames does an entity get when damaged, from 0 (default), to 2^31-1 (nothing can take damage)")
-                    .defineInRange("iFrameInterval", 0, 0, Integer.MAX_VALUE);
-            excludePlayersTemp = builder.comment(
-                            "Are players excluded from this mod (if true, players will always get 10 ticks of i-frames on being damaged")
-                    .define("excludePlayers", false);
-            excludeAllMobsTemp = builder.comment(
-                            "Are players excluded from this mod (if true, players will always get 10 ticks of i-frames on being damaged")
-                    .define("excludeAllMobs", false);
-
-            builder.pop();
+        public ConfigCarrier() {
+            this.setToDefault();
         }
 
-    }
-
-    public static class Thresholds {
-        public final ForgeConfigSpec.DoubleValue attackCancelThresholdTemp, knockbackCancelThresholdTemp;
-
-        public double attackCancelThreshold, knockbackCancelThreshold;
-
-        public Thresholds(ForgeConfigSpec.Builder builder) {
-            builder.comment("Threshold values for certain features").push("threshold");
-
-            attackCancelThresholdTemp = builder.comment(
-                            "How weak a player's attack can be before it gets nullified, from 0 (0%, cancels multiple attacks on the same tick) to 1 (100%, players cannot attack), or -0.1 (disables this feature)")
-                    .defineInRange("attackCancelThreshold", 0.1, -0.1, 1);
-            knockbackCancelThresholdTemp = builder.comment(
-                            "How weak a player's attack can be before the knockback gets nullified, from 0 (0%, cancels multiple attacks on the same tick) to 1 (100%, no knockback), or -0.1 (disables this feature)")
-                    .defineInRange("knockbackCancelThreshold", 0.75, -0.1, 1);
-
-            builder.pop();
+        private void setToDefault() {
+            iFrameInterval = 0;
+            excludePlayers = false;
+            excludeAllMobs = false;
+            attackCancelThreshold = 0.1f;
+            knockbackCancelThreshold = 0.75f;
+            attackExcludedEntities = new String[] {"minecraft:slime", "minecraft:magma_cube", "twilightforest:maze_slime"};
+            dmgReceiveExcludedEntities = new String[] {};
+            damageSrcWhitelist = new String[] {"inFire", "lava", "sweetBerryBush", "cactus", "lightningBolt", "inWall", "hotFloor"};
+            debugMode = false;
         }
     }
 
-    public static class Exclusions {
-        public final ForgeConfigSpec.ConfigValue<List<? extends String>> attackExcludedEntitiesTemp, dmgReceiveExcludedEntitiesTemp,
-                damageSrcWhitelistTemp;
+    public static void preInit() {
+        File configFile = new File(FabricLoader.getInstance().getConfigDir().toFile(), "nodami.cfg");
+        readConfig(configFile);
+    }
 
-        public HashSet<String> attackExcludedEntities, dmgReceiveExcludedEntities, damageSrcWhitelist;
+    private static void setToCarrier(ConfigCarrier carrier) {
+        iFrameInterval = carrier.iFrameInterval;
+        excludePlayers = carrier.excludePlayers;
+        excludeAllMobs = carrier.excludeAllMobs;
+        attackCancelThreshold = carrier.attackCancelThreshold;
+        knockbackCancelThreshold = carrier.knockbackCancelThreshold;
+        attackExcludedEntities = carrier.attackExcludedEntities.clone();
+        dmgReceiveExcludedEntities = carrier.dmgReceiveExcludedEntities.clone();
+        damageSrcWhitelist = carrier.damageSrcWhitelist.clone();
+        debugMode = carrier.debugMode;
+    }
 
-        public Exclusions(ForgeConfigSpec.Builder builder) {
-            List<String> defaultAEE = Arrays.asList("minecraft:slime", "minecraft:magma_cube", "tconstruct:earth_slime", "tconstruct:sky_slime", "tconstruct:ender_slime", "tconstruct:terracube", "twilightforest:maze_slime");
-            List<String> defaultREEE = Arrays.asList(new String[0]);
-            List<String> defaultDSW = Arrays.asList("inFire", "lava", "sweetBerryBush", "cactus", "lightningBolt", "inWall", "hotFloor",
-                    "outOfWorld");
-            builder.comment("Exclusion lists for certain features").push("exclusions");
+    private static void setToDefault() {
+        ConfigCarrier temp = new ConfigCarrier();
+        setToCarrier(temp);
+    }
 
-            Predicate<Object> dummyPredicate = t -> true;
+    private static void readConfig(File configFile) {
+        Yaml yamlParser = new Yaml();
+        if (configFile.exists()) {
+            System.out.println("NoDamI: Found existing config file. Reading...");
+            FileInputStream fStream;
+            try {
+                fStream = new FileInputStream(configFile);
+                ConfigCarrier cfg = yamlParser.load(fStream);
+                setToCarrier(cfg);
+                fStream.close();
 
-            attackExcludedEntitiesTemp = builder.comment("List of entities that need to give i-frames on attacking")
-                    .defineList("attackExcludedEntities", defaultAEE, dummyPredicate);
-
-            dmgReceiveExcludedEntitiesTemp = builder
-                    .comment(
-                            "List of entities that need to receive i-frames on receiving attacks or relies on i-frames")
-                    .defineList("dmgReceiveExcludedEntities", defaultREEE, dummyPredicate);
-
-            damageSrcWhitelistTemp = builder
-                    .comment("List of damage sources that need to give i-frames on doing damage (ex: lava)")
-                    .defineList("damageSrcWhitelist", defaultDSW, dummyPredicate);
-
-            builder.pop();
+                String dump = yamlParser.dump(cfg);
+                int firstEntryIndex = dump.indexOf("attackCancelThreshold");
+                if (dump.indexOf("attackCancelThreshold") > 0 || dump.indexOf("attackCancelThreshold") < dump.length()) {
+                    System.out.println("NoDamI: Done reading config files. Here are the loaded settings:");
+                    System.out.println("\n" + dump.substring(firstEntryIndex));
+                } else {
+                    System.out.println("NoDamI: Warning, config file may potentially be corrupted. Loading default values.");
+                    setToDefault();
+                }
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.out.println("NoDamI: Caught exception while reading config file. Loading default values.");
+                setToDefault();
+            } catch (IndexOutOfBoundsException e) {
+                System.out.println("NoDamI: Config file was potentially corrupted. ");
+                setToDefault();
+            }
+        } else {
+            System.out.println("NoDamI: Did not found config file. Writing first time config file...");
+            ConfigCarrier firstTime = new ConfigCarrier();
+            try {
+                FileWriter writer = new FileWriter(configFile);
+                writer.write(yamlParser.dump(firstTime));
+                writer.close();
+                System.out.println("NoDamI: Done writing first time config file.");
+                setToCarrier(firstTime);
+            } catch (IOException e) {
+                e.printStackTrace();
+                System.out.println("NoDamI: Caught exception while writing first time config file. Loading default values.");
+                setToDefault();
+            }
 
         }
-    }
+		/*
+		iFrameInterval = getInt("iFrameInterval", "core", 0, 0, Integer.MAX_VALUE, "How many ticks of i-frames does an entity get when damaged, from 0 (default), to 2^31-1 (nothing can take damage)");
+		excludePlayers = getBoolean("excludePlayers", "core", false, "Are players excluded from this mod (if true, players will always get 10 ticks of i-frames on being damaged");
+		excludeAllMobs = getBoolean("excludeAllMobs", "core", false, "Are all mobs excluded from this mod (if true, mobs will always get 10 ticks of i-farmes on being damaged");
 
-    public static class Misc {
-        public final ForgeConfigSpec.BooleanValue debugModeTemp;
+		attackCancelThreshold = getFloat("attackCancelThreshold", "thresholds", 0.1f, -0.1f, 1, "How weak a player's attack can be before it gets nullified, from 0 (0%, cancels multiple attacks on the same tick) to 1 (100%, players cannot attack), or -0.1 (disables this feature)");
+		knockbackCancelThreshold = getFloat("knockbackCancelThreshold", "thresholds", 0.75f, -0.1f, 1, "How weak a player's attack can be before the knockback gets nullified, from 0 (0%, cancels multiple attacks on the same tick) to 1 (100%, no knockback), or -0.1 (disables this feature)");
 
-        public boolean debugMode;
+		attackExcludedEntities = getStringList("attackExcludedEntities", "exclusions", new String[] {"minecraft:slime"}, "List of entities that need to give i-frames on attacking");
+		dmgReceiveExcludedEntities = getStringList("damageReceiveExcludedEntities", "exclusions", new String[0], "List of entities that need to receive i-frames on receiving attacks or relies on iFrames");
+		damageSrcWhitelist = getStringList("dmgSrcWhitelist", "exclusions", new String[] {"inFire", "lava", "cactus", "lightningBolt", "inWall", "hotFloor"}, "List of damage sources that need to give i-frames on doing damage (ex: lava).");
 
-        public Misc(ForgeConfigSpec.Builder builder) {
-            builder.comment("Miscellaneous stuff").push("misc");
+		debugMode = getBoolean("debugMode", "misc", false, "If true, turns on feature which sends a message when a player receives damage, containing information such as the name of the source and the quantity. Use this to find the name of the source you need to whitelist, or the id of the mob you want to exclude.");
+		*/
 
-            debugModeTemp = builder.comment(
-                            "If true, turns on feature which sends a message when a player receives damage, containing information such as the name of the source and the quantity. Use this to find the name of the source you need to whitelist, or the id of the mob you want to exclude.")
-                    .define("debugMode", false);
-            builder.pop();
-        }
-    }
-
-    public static void cacheValues() {
-        CORE.iFrameInterval = CORE.iFrameIntervalTemp.get();
-        CORE.excludePlayers = CORE.excludePlayersTemp.get();
-        CORE.excludeAllMobs = CORE.excludeAllMobsTemp.get();
-
-        THRESHOLDS.attackCancelThreshold = THRESHOLDS.attackCancelThresholdTemp.get();
-        THRESHOLDS.knockbackCancelThreshold = THRESHOLDS.knockbackCancelThresholdTemp.get();
-
-        EXCLUSIONS.attackExcludedEntities = new HashSet<>(EXCLUSIONS.attackExcludedEntitiesTemp.get());
-        EXCLUSIONS.dmgReceiveExcludedEntities = new HashSet<>(EXCLUSIONS.dmgReceiveExcludedEntitiesTemp.get());
-        EXCLUSIONS.damageSrcWhitelist = new HashSet<>(EXCLUSIONS.damageSrcWhitelistTemp.get());
-
-        MISC.debugMode = MISC.debugModeTemp.get();
-
-    }
-
-    @SubscribeEvent
-    public void onModConfigEvent(final ModConfigEvent configEvent) {
-        if (configEvent.getConfig().getSpec() == NodamiConfig.SPEC) {
-            NodamiConfig.cacheValues();
-        }
-    }
-
-    @SubscribeEvent
-    public void onLoad(final ModConfigEvent.Loading event) {
-        NoDamIMod.LOGGER.info("Config loaded!");
-        NodamiConfig.cacheValues();
-    }
-
-    @SubscribeEvent
-    public void onReload(final ModConfigEvent.Reloading event) {
-        NoDamIMod.LOGGER.info("Config reloaded!");
-        NodamiConfig.cacheValues();
     }
 }

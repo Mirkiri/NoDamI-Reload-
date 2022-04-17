@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "id": "nodami",
+  "version": "${version}",
+
+  "name": "No Damage Immunity(NoDamI) Reload Mod",
+  "description": "",
+  "authors": [
+    "Mirkiri"
+  ],
+  "contact": {
+    "homepage": "https://www.curseforge.com/minecraft/mc-mods/no-damage-immunity-reload"
+  },
+
+  "license": "GNU General Public License Version 3",
+
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "net.mirkiri.nodami.NodamiMod"
+    ]
+  },
+  "mixins": [
+    "nodami.mixins.json"
+  ],
+
+  "depends": {
+    "fabricloader": ">=0.13.3",
+    "fabric": "*",
+    "minecraft": "1.18.x",
+    "java": ">=17"
+  }
+}
