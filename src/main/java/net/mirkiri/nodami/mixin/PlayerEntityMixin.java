@@ -6,13 +6,15 @@ import net.minecraft.entity.player.PlayerEntity;
 import net.minecraft.util.ActionResult;
 import net.mirkiri.nodami.interfaces.EntityHurtCallback;
 import net.mirkiri.nodami.interfaces.PlayerAttackCallback;
+import net.mirkiri.nodami.interfaces.PlayerEntityAccessor;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 
 @Mixin(PlayerEntity.class)
-public class PlayerEntityMixin {
+public class PlayerEntityMixin implements PlayerEntityAccessor {
 
 	@Inject(at = @At("TAIL"), method = "applyDamage", cancellable = true)
 	private void onEntityHurt(final DamageSource source, final float amount, CallbackInfo ci) {
@@ -29,5 +31,18 @@ public class PlayerEntityMixin {
 		if (result == ActionResult.FAIL) {
 			ci.cancel();
 		}
+	}
+
+	@Unique
+	private boolean swinging = false;
+
+	@Override
+	public void setSwinging(boolean swinging) {
+		this.swinging = swinging;
+	}
+
+	@Override
+	public boolean isSwinging() {
+		return this.swinging;
 	}
 }
