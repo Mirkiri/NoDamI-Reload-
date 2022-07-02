@@ -1,5 +1,7 @@
 package net.mirkiri.nodami;
 
+import me.shedaniel.autoconfig.AutoConfig;
+import me.shedaniel.autoconfig.serializer.JanksonConfigSerializer;
 import net.fabricmc.api.ModInitializer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityType;
@@ -11,6 +13,7 @@ import net.mirkiri.nodami.config.NodamiConfig;
 import net.mirkiri.nodami.interfaces.EntityHurtCallback;
 import net.mirkiri.nodami.interfaces.EntityKnockbackCallback;
 import net.mirkiri.nodami.interfaces.PlayerAttackCallback;
+import net.mirkiri.nodami.interfaces.PlayerEntityAccessor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -21,9 +24,9 @@ public class NodamiMod implements ModInitializer {
 	@Override
 	public void onInitialize() {
 		LOGGER.info("NoDamI for Minecraft 1.18.2 Fabric Edition is starting.");
-		NodamiConfig.preInit();
+		AutoConfig.register(NodamiConfig.class, JanksonConfigSerializer::new);
 		registerHandlers();
-		LOGGER.info("NoDamI: Loading completed. This mod is powered by FabricMC and SnakeYAML");
+		LOGGER.info("NoDamI: Loading completed.");
 	}
 
 	private void registerHandlers() {
@@ -31,9 +34,9 @@ public class NodamiMod implements ModInitializer {
 			if (entity.getEntityWorld().isClient) {
 				return ActionResult.PASS;
 			}
-			if (NodamiConfig.debugMode && entity instanceof PlayerEntity) {
+			Entity trueSource = source.getAttacker();
+			if (NodamiConfig.getConfig().debugMode && entity instanceof PlayerEntity) {
 				String debugSource;
-				Entity trueSource = source.getAttacker();
 				if (trueSource == null || EntityType.getId(trueSource.getType()) == null) {
 					debugSource = "null";
 				} else {
@@ -44,14 +47,14 @@ public class NodamiMod implements ModInitializer {
 				((PlayerEntity) entity).sendMessage(new LiteralText(message), false);
 
 			}
-			if (NodamiConfig.excludePlayers && entity instanceof PlayerEntity) {
+			if (NodamiConfig.getConfig().excludePlayers && entity instanceof PlayerEntity) {
 				return ActionResult.PASS;
 			}
-			if (NodamiConfig.excludeAllMobs && !(entity instanceof PlayerEntity)) {
+			if (NodamiConfig.getConfig().excludeAllMobs && !(entity instanceof PlayerEntity)) {
 				return ActionResult.PASS;
 			}
-			for (String id : NodamiConfig.dmgReceiveExcludedEntities) {
 				Identifier loc = EntityType.getId(entity.getType());
+			for (String id : NodamiConfig.getConfig().dmgReceiveExcludedEntities) {
 				if (loc == null)
 					break;
 				int starIndex = id.indexOf('*');
@@ -63,18 +66,15 @@ public class NodamiMod implements ModInitializer {
 					return ActionResult.PASS;
 				}
 			}
-
-			for (String dmgType : NodamiConfig.damageSrcWhitelist) {
+			for (String dmgType : NodamiConfig.getConfig().damageSrcWhitelist) {
 				if (source.getName().equals(dmgType)) {
 					return ActionResult.PASS;
 				}
 			}
-
-			for (String id : NodamiConfig.attackExcludedEntities) {
+			for (String id : NodamiConfig.getConfig().attackExcludedEntities) {
 				Entity attacker = source.getAttacker();
 				if (attacker == null)
 					break;
-				Identifier loc = EntityType.getId(attacker.getType());
 				if (loc == null)
 					break;
 				int starIndex = id.indexOf('*');
@@ -88,8 +88,32 @@ public class NodamiMod implements ModInitializer {
 
 			}
 
-			entity.timeUntilRegen = NodamiConfig.iFrameInterval;
+			entity.timeUntilRegen = NodamiConfig.getConfig().iFrameInterval;
 			return ActionResult.PASS;
+		});
+		PlayerAttackCallback.EVENT.register((player, target) -> {
+			if (player.getEntityWorld().isClient) {
+				return ActionResult.PASS;
+			}
+
+			if (NodamiConfig.getConfig().debugMode) {
+				String message = String.format("Entity attacked: %s",
+						EntityType.getId(target.getType()));
+				player.sendMessage(new LiteralText(message), false);
+			}
+
+			float str = player.getAttackCooldownProgress(0);
+			if (str <= NodamiConfig.getConfig().attackCancelThreshold) {
+				return ActionResult.FAIL;
+			}
+			if (str <= NodamiConfig.getConfig().knockbackCancelThreshold) {
+				// Don't worry, it's only magic
+				PlayerEntityAccessor playerAccessor = (PlayerEntityAccessor) player;
+				playerAccessor.setSwinging(true);
+			}
+
+			return ActionResult.PASS;
+
 		});
 		EntityKnockbackCallback.EVENT.register((entity, source, amp, dx, dz) -> {
 			if (entity.getEntityWorld().isClient) {
@@ -97,36 +121,15 @@ public class NodamiMod implements ModInitializer {
 			}
 			if (source != null) {
 				// IT'S ONLY MAGIC
-				if (source instanceof PlayerEntity && ((PlayerEntity) source).handSwinging) {
-					((PlayerEntity) source).handSwinging = false;
-					return ActionResult.FAIL;
+				if (source instanceof PlayerEntity player) {
+					PlayerEntityAccessor playerAccessor = (PlayerEntityAccessor) player;
+					if (playerAccessor.isSwinging()) {
+						playerAccessor.setSwinging(false);
+						return ActionResult.FAIL;
+					}
 				}
 			}
 			return ActionResult.PASS;
-		});
-
-		PlayerAttackCallback.EVENT.register((player, target) -> {
-			if (player.getEntityWorld().isClient) {
-				return ActionResult.PASS;
-			}
-
-			if (NodamiConfig.debugMode) {
-				String message = String.format("Entity attacked: %s",
-						EntityType.getId(target.getType()));
-				player.sendMessage(new LiteralText(message), false);
-			}
-
-			float str = player.getAttackCooldownProgress(0);
-			if (str <= NodamiConfig.attackCancelThreshold) {
-				return ActionResult.FAIL;
-			}
-			if (str <= NodamiConfig.knockbackCancelThreshold) {
-				// Don't worry, it's only magic
-				player.handSwinging = true;
-			}
-
-			return ActionResult.PASS;
-
 		});
 	}
 
